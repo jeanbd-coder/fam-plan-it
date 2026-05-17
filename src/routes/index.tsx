@@ -129,7 +129,7 @@ function Dashboard({ userId }: { userId: string }) {
               🏡
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-semibold leading-tight">Hearth</h1>
+              <h1 className="text-xl sm:text-2xl font-semibold leading-tight">Golden Family Task List</h1>
               <p className="text-xs text-muted-foreground">
                 {me ? `Hi, ${me.display_name.split(" ")[0]}` : "Family tasks"}
               </p>

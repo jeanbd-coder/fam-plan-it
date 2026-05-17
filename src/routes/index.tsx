@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -23,13 +24,28 @@ export const Route = createFileRoute("/")({
 });
 
 type Profile = { id: string; display_name: string; avatar_url: string | null };
+type Priority = "low" | "medium" | "high";
 type Task = {
   id: string;
   title: string;
+  description: string | null;
+  priority: Priority;
   assigned_to: string | null;
   due_date: string | null;
   done: boolean;
   created_by: string;
+};
+
+const PRIORITY_RANK: Record<Priority, number> = { high: 0, medium: 1, low: 2 };
+const PRIORITY_BADGE: Record<Priority, string> = {
+  high: "bg-destructive/10 text-destructive",
+  medium: "bg-primary/10 text-primary",
+  low: "bg-muted text-muted-foreground",
+};
+const PRIORITY_LABEL: Record<Priority, string> = {
+  high: "High",
+  medium: "Medium",
+  low: "Low",
 };
 
 function HomePage() {
@@ -72,7 +88,7 @@ function Dashboard({ userId }: { userId: string }) {
     queryFn: async (): Promise<Task[]> => {
       const { data, error } = await supabase
         .from("tasks")
-        .select("id, title, assigned_to, due_date, done, created_by")
+        .select("id, title, description, priority, assigned_to, due_date, done, created_by")
         .order("done", { ascending: true })
         .order("due_date", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: false });
@@ -109,9 +125,24 @@ function Dashboard({ userId }: { userId: string }) {
 
   const tasks = useMemo(() => {
     const list = tasksQ.data ?? [];
-    if (filter === "all") return list;
-    if (filter === "unassigned") return list.filter((t) => !t.assigned_to);
-    return list.filter((t) => t.assigned_to === filter);
+    const filtered =
+      filter === "all"
+        ? list
+        : filter === "unassigned"
+          ? list.filter((t) => !t.assigned_to)
+          : list.filter((t) => t.assigned_to === filter);
+
+    return [...filtered].sort((a, b) => {
+      if (a.done !== b.done) return a.done ? 1 : -1;
+      if (!a.done) {
+        const pr = PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
+        if (pr !== 0) return pr;
+      }
+      if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date);
+      if (a.due_date) return -1;
+      if (b.due_date) return 1;
+      return 0;
+    });
   }, [tasksQ.data, filter]);
 
   const openCount = tasks.filter((t) => !t.done).length;
@@ -215,7 +246,23 @@ function Dashboard({ userId }: { userId: string }) {
                     <p className={cn("font-medium leading-snug", t.done && "line-through")}>
                       {t.title}
                     </p>
+                    {t.description && (
+                      <p
+                        className={cn(
+                          "text-sm text-muted-foreground mt-1 whitespace-pre-wrap break-words",
+                          t.done && "line-through"
+                        )}
+                      >
+                        {t.description}
+                      </p>
+                    )}
                     <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
+                      <Badge
+                        variant="secondary"
+                        className={cn("font-normal", PRIORITY_BADGE[t.priority])}
+                      >
+                        {PRIORITY_LABEL[t.priority]}
+                      </Badge>
                       {assignee ? (
                         <span className="inline-flex items-center gap-1.5 text-muted-foreground">
                           <Avatar className="w-5 h-5">
@@ -265,14 +312,27 @@ function Dashboard({ userId }: { userId: string }) {
 function AddTaskForm({ userId, profiles }: { userId: string; profiles: Profile[] }) {
   const qc = useQueryClient();
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [priority, setPriority] = useState<Priority>("medium");
   const [assignedTo, setAssignedTo] = useState<string>("unassigned");
   const [dueDate, setDueDate] = useState<Date | undefined>();
   const [expanded, setExpanded] = useState(false);
+
+  const reset = () => {
+    setTitle("");
+    setDescription("");
+    setPriority("medium");
+    setAssignedTo("unassigned");
+    setDueDate(undefined);
+    setExpanded(false);
+  };
 
   const create = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("tasks").insert({
         title: title.trim(),
+        description: description.trim() ? description.trim() : null,
+        priority,
         assigned_to: assignedTo === "unassigned" ? null : assignedTo,
         due_date: dueDate ? format(dueDate, "yyyy-MM-dd") : null,
         created_by: userId,
@@ -280,10 +340,7 @@ function AddTaskForm({ userId, profiles }: { userId: string; profiles: Profile[]
       if (error) throw error;
     },
     onSuccess: () => {
-      setTitle("");
-      setAssignedTo("unassigned");
-      setDueDate(undefined);
-      setExpanded(false);
+      reset();
       qc.invalidateQueries({ queryKey: ["tasks"] });
       toast.success("Task added");
     },
@@ -315,51 +372,72 @@ function AddTaskForm({ userId, profiles }: { userId: string; profiles: Profile[]
       </div>
 
       {expanded && (
-        <div className="mt-3 pt-3 border-t flex flex-wrap gap-2">
-          <Select value={assignedTo} onValueChange={setAssignedTo}>
-            <SelectTrigger className="h-9 w-[160px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="unassigned">Unassigned</SelectItem>
-              {profiles.map((p) => (
-                <SelectItem key={p.id} value={p.id}>{p.display_name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <>
+          <Textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Add a short description (optional)"
+            rows={2}
+            className="mt-2 resize-none text-sm"
+          />
 
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button type="button" variant="outline" size="sm" className="h-9">
-                <CalendarIcon className="w-4 h-4 mr-2" />
-                {dueDate ? format(dueDate, "MMM d") : "Due date"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={dueDate}
-                onSelect={setDueDate}
-                initialFocus
-                className={cn("p-3 pointer-events-auto")}
-              />
-            </PopoverContent>
-          </Popover>
+          <div className="mt-3 pt-3 border-t flex flex-wrap gap-2">
+            <Select value={priority} onValueChange={(v) => setPriority(v as Priority)}>
+              <SelectTrigger className="h-9 w-[130px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="low">Low priority</SelectItem>
+                <SelectItem value="medium">Medium priority</SelectItem>
+                <SelectItem value="high">High priority</SelectItem>
+              </SelectContent>
+            </Select>
 
-          <div className="flex-1" />
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-9"
-            onClick={() => { setExpanded(false); setTitle(""); setDueDate(undefined); setAssignedTo("unassigned"); }}
-          >
-            Cancel
-          </Button>
-          <Button type="submit" size="sm" className="h-9" disabled={!title.trim() || create.isPending}>
-            {create.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Add task"}
-          </Button>
-        </div>
+            <Select value={assignedTo} onValueChange={setAssignedTo}>
+              <SelectTrigger className="h-9 w-[160px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unassigned">Unassigned</SelectItem>
+                {profiles.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.display_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button type="button" variant="outline" size="sm" className="h-9">
+                  <CalendarIcon className="w-4 h-4 mr-2" />
+                  {dueDate ? format(dueDate, "MMM d") : "Due date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={dueDate}
+                  onSelect={setDueDate}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+
+            <div className="flex-1" />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-9"
+              onClick={reset}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" className="h-9" disabled={!title.trim() || create.isPending}>
+              {create.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Add task"}
+            </Button>
+          </div>
+        </>
       )}
     </form>
   );

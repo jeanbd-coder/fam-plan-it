@@ -4,12 +4,12 @@ A shared, lightweight task tracker for a family. Everyone signs in with Google, 
 
 ## Stack
 
-- **Framework:** [TanStack Start](https://tanstack.com/start) (React 19, file-based routing, SSR)
+- **Framework:** [TanStack Start](https://tanstack.com/start) (React 19, file-based routing) running in SPA mode
 - **Build:** Vite 7 + TypeScript
 - **Styling:** Tailwind CSS 4 + [shadcn/ui](https://ui.shadcn.com) (Radix primitives)
 - **Data:** [React Query](https://tanstack.com/query) + [Supabase](https://supabase.com) (Postgres with Row-Level Security)
 - **Auth:** Supabase email + password (sign-in, sign-up, password reset)
-- **Deploy:** Cloudflare Workers (`wrangler` + `@cloudflare/vite-plugin`)
+- **Deploy:** [Vercel](https://vercel.com) (static SPA)
 - **Package manager:** Bun (a `package-lock.json` is also present for npm)
 
 ## Routes
@@ -41,21 +41,19 @@ bun install         # or: npm install
 bun run dev         # vite dev server
 ```
 
-Open the printed URL (typically `http://localhost:5173`).
+Open the printed URL (the Lovable Vite preset listens on `http://localhost:8080`).
 
 ### Environment
 
 Copy `.env.example` to `.env` and fill in the values from your Supabase project (Supabase dashboard → Settings → API):
 
 ```
-SUPABASE_URL="https://<project-ref>.supabase.co"
-SUPABASE_PUBLISHABLE_KEY="<anon key>"
 VITE_SUPABASE_URL="https://<project-ref>.supabase.co"
-VITE_SUPABASE_PUBLISHABLE_KEY="<anon key>"
+VITE_SUPABASE_PUBLISHABLE_KEY="<anon / publishable key>"
 VITE_SUPABASE_PROJECT_ID="<project-ref>"
 ```
 
-The `VITE_*` vars are read by the browser client; the unprefixed ones are read by the Cloudflare Worker / SSR path. `.env` is gitignored.
+These are read by the browser at build time. `.env` is gitignored.
 
 ### Database
 
@@ -90,12 +88,25 @@ In the Supabase dashboard:
 
 ## Deployment
 
-The app builds for Cloudflare Workers. `wrangler.jsonc` points to `src/server.ts` as the worker entry, and the Vite plugin handles the build:
+The app deploys as a **static SPA on Vercel**. `vercel.json` sets the build command, output directory (`dist/client`), and a catch-all rewrite to `_shell.html` so client-side routes work on deep links.
 
 ```bash
-bun run build
-wrangler deploy
+# one-time setup
+bun add -g vercel
+vercel login
+vercel link
+
+# add the three Supabase env vars (production + preview + development)
+vercel env add VITE_SUPABASE_URL
+vercel env add VITE_SUPABASE_PUBLISHABLE_KEY
+vercel env add VITE_SUPABASE_PROJECT_ID
+
+# deploy
+vercel             # preview deploy
+vercel --prod      # production deploy
 ```
+
+If the repo is connected to Vercel via GitHub, pushes to `main` deploy automatically — you only need to set the env vars in the dashboard once.
 
 ## Project layout
 

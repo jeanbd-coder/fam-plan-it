@@ -16,6 +16,11 @@ dist-ssr
 .nitro
 *.local
 
+# Local env files (contain Supabase keys etc.)
+.env
+.env.*
+!.env.example
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars

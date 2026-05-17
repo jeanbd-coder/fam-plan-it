@@ -45,23 +45,29 @@ Open the printed URL (typically `http://localhost:5173`).
 
 ### Environment
 
-Create a `.env` in the project root with the Supabase + Lovable Cloud credentials:
+Copy `.env.example` to `.env` and fill in the values from your Supabase project (Supabase dashboard → Settings → API):
 
 ```
-VITE_SUPABASE_URL=...
-VITE_SUPABASE_ANON_KEY=...
-# any additional VITE_* keys required by @lovable.dev/cloud-auth-js
+SUPABASE_URL="https://<project-ref>.supabase.co"
+SUPABASE_PUBLISHABLE_KEY="<anon key>"
+VITE_SUPABASE_URL="https://<project-ref>.supabase.co"
+VITE_SUPABASE_PUBLISHABLE_KEY="<anon key>"
+VITE_SUPABASE_PROJECT_ID="<project-ref>"
 ```
 
-Vite injects all `VITE_*` variables into the client bundle via `@lovable.dev/vite-tanstack-config`.
+The `VITE_*` vars are read by the browser client; the unprefixed ones are read by the Cloudflare Worker / SSR path. `.env` is gitignored.
 
 ### Database
 
-The two migrations in `supabase/migrations/` define the schema. Apply them with the Supabase CLI:
+The schema lives in two places:
 
-```bash
-supabase db push
-```
+- `supabase/setup.sql` — a single consolidated script. **Easiest for a fresh project**: paste it into the Supabase dashboard's SQL Editor and run.
+- `supabase/migrations/` — the same schema as ordered migration files, for use with the Supabase CLI:
+
+  ```bash
+  supabase link --project-ref <your-project-ref>
+  supabase db push
+  ```
 
 ### Supabase auth settings
 
@@ -103,7 +109,7 @@ src/
   components/ui/      # shadcn/ui components
   hooks/              # useAuth, etc.
   integrations/
-    supabase/         # Supabase client
+    supabase/         # Supabase client + auth middleware
   lib/                # Shared utilities (cn, etc.)
   router.tsx          # Router factory
   server.ts           # SSR/worker entry

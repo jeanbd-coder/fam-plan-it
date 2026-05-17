@@ -41,7 +41,7 @@ function LoginPage() {
             <span className="text-3xl">🏡</span>
           </div>
           <h1 className="text-4xl md:text-5xl font-semibold text-foreground mb-3">
-            Welcome to Hearth
+            Welcome to Golden Family Task List
           </h1>
           <p className="text-muted-foreground text-lg">
             A warm, shared task list for your family.

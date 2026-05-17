@@ -8,16 +8,17 @@ A shared, lightweight task tracker for a family. Everyone signs in with Google, 
 - **Build:** Vite 7 + TypeScript
 - **Styling:** Tailwind CSS 4 + [shadcn/ui](https://ui.shadcn.com) (Radix primitives)
 - **Data:** [React Query](https://tanstack.com/query) + [Supabase](https://supabase.com) (Postgres with Row-Level Security)
-- **Auth:** Google OAuth via [Lovable Cloud Auth](https://lovable.dev)
+- **Auth:** Supabase email + password (sign-in, sign-up, password reset)
 - **Deploy:** Cloudflare Workers (`wrangler` + `@cloudflare/vite-plugin`)
 - **Package manager:** Bun (a `package-lock.json` is also present for npm)
 
 ## Routes
 
-| Path     | File                    | Purpose                                                       |
-| -------- | ----------------------- | ------------------------------------------------------------- |
-| `/`      | `src/routes/index.tsx`  | Dashboard: add, assign, complete, filter, and delete tasks    |
-| `/login` | `src/routes/login.tsx`  | Google sign-in                                                |
+| Path               | File                              | Purpose                                                       |
+| ------------------ | --------------------------------- | ------------------------------------------------------------- |
+| `/`                | `src/routes/index.tsx`            | Dashboard: add, assign, complete, filter, and delete tasks    |
+| `/login`           | `src/routes/login.tsx`            | Email + password sign-in / sign-up, "forgot password" entry   |
+| `/reset-password`  | `src/routes/reset-password.tsx`   | Landing page for the password-reset email link                |
 
 ## Data model
 
@@ -62,7 +63,13 @@ The two migrations in `supabase/migrations/` define the schema. Apply them with 
 supabase db push
 ```
 
-The Google OAuth provider must be enabled in the Supabase project for sign-in to work.
+### Supabase auth settings
+
+In the Supabase dashboard:
+
+- Enable the **Email** provider under Authentication → Providers.
+- Decide whether to require email confirmation. If on, new sign-ups will see a "Check your inbox" screen until they click the link.
+- Add `<your-app-origin>/reset-password` to **Authentication → URL Configuration → Redirect URLs** so the password-reset email link is allowed.
 
 ## Scripts
 
@@ -91,11 +98,11 @@ src/
   routes/             # File-based routes (TanStack Router)
     __root.tsx        # Root layout, meta, error/404 boundaries
     index.tsx         # Dashboard
-    login.tsx         # Sign-in
+    login.tsx         # Sign-in / sign-up / forgot password
+    reset-password.tsx # Set a new password after clicking the email link
   components/ui/      # shadcn/ui components
   hooks/              # useAuth, etc.
   integrations/
-    lovable/          # Lovable Cloud Auth client
     supabase/         # Supabase client
   lib/                # Shared utilities (cn, etc.)
   router.tsx          # Router factory
